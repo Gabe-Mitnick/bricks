@@ -1,6 +1,6 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrthographicCamera, PerspectiveCamera } from '@react-three/drei'
-import { BrickConfig } from '../steps'
+import { SceneState } from '../steps'
 import { CameraConfig } from '../App'
 import BrickModel from './BrickModel'
 
@@ -24,7 +24,7 @@ function DynamicCamera({ config }: { config: CameraConfig }) {
 }
 
 interface Props {
-  targetConfig: BrickConfig
+  targetConfig: SceneState
   cameraConfig: CameraConfig
 }
 

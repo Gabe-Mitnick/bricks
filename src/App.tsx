@@ -13,8 +13,6 @@ export interface CameraConfig {
 
 const DEFAULT_CAMERA: CameraConfig = { fov: 0, zoom: 50 }
 
-// Placeholder scene config until Phase 2 rewires the scene
-const DEFAULT_SCENE = { rowOffset: 0.5, rotation: [0, 0.3, 0] as [number, number, number], groupY: 0 }
 
 export default function App() {
   const [currentMoment, setCurrentMoment] = useState(0)
@@ -35,7 +33,7 @@ export default function App() {
   return (
     <div className={styles.container}>
       <div className={styles.canvasLayer}>
-        <Scene targetConfig={DEFAULT_SCENE} cameraConfig={cameraConfig} />
+        <Scene targetConfig={moments[currentMoment].scene} cameraConfig={cameraConfig} />
       </div>
       <div className={styles.textLayer}>
         <TextLayer moments={moments} currentMoment={currentMoment} />
