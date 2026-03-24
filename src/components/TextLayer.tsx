@@ -10,19 +10,28 @@ interface Props {
 type AnimClass = 'enterFromRight' | 'enterFromLeft' | 'exitToLeft' | 'exitToRight' | null
 
 interface Panel {
-  stepText: string
-  substepText: string | null
-  substepKey: number
+  stepMoment: number       // index of the step moment for this slide
+  substepMoments: number[] // indices of active substeps, in order
   animClass: AnimClass
   key: number
 }
 
-// Returns the index of the step moment that begins the current slide
+// Returns the index of the step moment that begins the slide containing momentIndex
 function getSlideStart(momentIndex: number, moments: Moment[]): number {
   for (let i = momentIndex; i >= 0; i--) {
     if (!moments[i].isSubstep) return i
   }
   return 0
+}
+
+// Returns the moment indices of all substeps from the slide start up to currentMoment
+function getSubstepMoments(currentMoment: number, moments: Moment[]): number[] {
+  const slideStart = getSlideStart(currentMoment, moments)
+  const result: number[] = []
+  for (let i = slideStart + 1; i <= currentMoment; i++) {
+    if (moments[i].isSubstep) result.push(i)
+  }
+  return result
 }
 
 // Parses *text* into <em> elements
@@ -34,10 +43,9 @@ function renderText(text: string): ReactNode[] {
 
 export default function TextLayer({ moments, currentMoment }: Props) {
   const panelKeyCounter = useRef(1)
-  const substepKeyCounter = useRef(1)
 
   const [panels, setPanels] = useState<Panel[]>([
-    { stepText: moments[0].text, substepText: null, substepKey: 0, animClass: null, key: 0 },
+    { stepMoment: 0, substepMoments: [], animClass: null, key: 0 },
   ])
 
   const prevMoment = useRef(currentMoment)
@@ -53,29 +61,23 @@ export default function TextLayer({ moments, currentMoment }: Props) {
       // Crossing a slide boundary — full slide transition
       const exitAnim: AnimClass = goingForward ? 'exitToLeft' : 'exitToRight'
       const enterAnim: AnimClass = goingForward ? 'enterFromRight' : 'enterFromLeft'
-      const newSubstepText = moments[currentMoment].isSubstep ? moments[currentMoment].text : null
 
       setPanels((prev) => {
         const updated = prev.map((p) =>
           p.animClass?.startsWith('exit') ? p : { ...p, animClass: exitAnim }
         )
         return [...updated, {
-          stepText: moments[currSlideStart].text,
-          substepText: newSubstepText,
-          substepKey: newSubstepText ? substepKeyCounter.current++ : 0,
+          stepMoment: currSlideStart,
+          substepMoments: getSubstepMoments(currentMoment, moments),
           animClass: enterAnim,
           key: panelKeyCounter.current++,
         }]
       })
     } else {
-      // Within the same slide — update substep text without sliding
-      const newSubstepText = moments[currentMoment].isSubstep ? moments[currentMoment].text : null
+      // Within the same slide — update substep list without sliding
+      const newSubstepMoments = getSubstepMoments(currentMoment, moments)
       setPanels((prev) => prev.map((p) =>
-        p.animClass?.startsWith('exit') ? p : {
-          ...p,
-          substepText: newSubstepText,
-          substepKey: newSubstepText ? substepKeyCounter.current++ : p.substepKey,
-        }
+        p.animClass?.startsWith('exit') ? p : { ...p, substepMoments: newSubstepMoments }
       ))
     }
 
@@ -96,12 +98,12 @@ export default function TextLayer({ moments, currentMoment }: Props) {
           className={`${styles.panel}${panel.animClass ? ` ${styles[panel.animClass]}` : ''}`}
           onAnimationEnd={() => handleAnimationEnd(panel.key, panel.animClass)}
         >
-          <p className={styles.text}>{renderText(panel.stepText)}</p>
-          {panel.substepText && (
-            <p key={panel.substepKey} className={`${styles.text} ${styles.substepText}`}>
-              {renderText(panel.substepText)}
+          <p className={styles.text}>{renderText(moments[panel.stepMoment].text)}</p>
+          {panel.substepMoments.map((idx) => (
+            <p key={idx} className={`${styles.text} ${styles.substepText}`}>
+              {renderText(moments[idx].text)}
             </p>
-          )}
+          ))}
         </div>
       ))}
     </>
