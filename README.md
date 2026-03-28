@@ -1,4 +1,4 @@
-# Brick Explainer
+# Brick explainer
 
 An interactive 3D explainer for brick bonding patterns, with smooth animated transitions between steps.
 
@@ -17,4 +17,3 @@ npm run dev
 ```
 
 Then open `http://localhost:5173`.
-
