@@ -25,9 +25,18 @@ const MAX_BRICKS = 200
 const STASH_POS = new THREE.Vector3(0, -5000, 0)
 const FALL_HEIGHT = 2000 // mm — how far above final position bricks start
 
-// ms per unit for each wave type
-const WAVE_COURSE_MS = 400
-const WAVE_COL_MS = 200
+const BASE_COLOR      = new THREE.Color('#b45c2a')
+const HIGHLIGHT_COLOR = new THREE.Color('#e8a050')
+
+// Pulse timing: STEP = ms between adjacent pulse starts, WIDTH = ms for one bell (> STEP → overlap)
+// PAUSE must satisfy: (numSlots-1)*STEP + WIDTH + PAUSE > numSlots*STEP, i.e. PAUSE > WIDTH - STEP
+// This prevents the last slot's tail from wrapping into the next cycle.
+const COURSE_PULSE_STEP_MS  = 400
+const COURSE_PULSE_WIDTH_MS = 700
+const COURSE_PULSE_PAUSE_MS = 600  // > WIDTH - STEP (300ms); also adds a gap before loop restarts
+const COL_PULSE_STEP_MS     = 200
+const COL_PULSE_WIDTH_MS    = 400
+const COL_PULSE_PAUSE_MS    = 600  // > WIDTH - STEP (200ms)
 
 // Cascade fall animation timing
 const ROW_DELAY_MS = 150    // ms between each row starting to fall
@@ -231,14 +240,22 @@ function cascadeProgress(elapsed: number, row: number, col: number): number {
   return Math.min(Math.max((elapsed - delay) / FALL_DURATION_MS, 0), 1)
 }
 
+// Returns 0–1 smooth bell (sin) for a looping pulse. elapsed and delay in ms.
+function pulseIntensity(elapsed: number, delay: number, pulseWidth: number, period: number): number {
+  const phase = ((elapsed - delay) % period + period) % period
+  if (phase >= pulseWidth) return 0
+  return Math.sin((phase / pulseWidth) * Math.PI)
+}
+
 function makeMaterial(color: string): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.05, transparent: true, opacity: 1 })
 }
 
 export default function BrickModel({ targetConfig }: Props) {
   const geo = useRef(new THREE.BoxGeometry(BW, BH, BD))
-  const baseMat = useRef(makeMaterial('#b45c2a'))
-  const highlightMat = useRef(makeMaterial('#e8a050'))
+  const brickMats = useRef<THREE.MeshStandardMaterial[]>(
+    Array.from({ length: MAX_BRICKS }, () => makeMaterial('#b45c2a'))
+  )
 
   const defs = useMemo(() => getBrickDefs(targetConfig), [targetConfig])
 
@@ -312,42 +329,11 @@ export default function BrickModel({ targetConfig }: Props) {
     }
     prevFallProgress.current = targetConfig.fallProgress
 
-    // --- Course highlight set ---
+    // --- Static course highlight set (no wave logic here) ---
     const highlightedRows = new Set<number>(targetConfig.highlightedCourses)
-    if (courseWaveStart.current !== null) {
-      const elapsed = now - courseWaveStart.current
-      const rows = targetConfig.rows
-      const halfDur = rows * WAVE_COURSE_MS
-      if (elapsed < halfDur) {
-        // forward: add courses bottom-up
-        const n = Math.min(Math.floor(elapsed / WAVE_COURSE_MS) + 1, rows)
-        for (let r = 0; r < n; r++) highlightedRows.add(r)
-      } else {
-        // reverse: remove courses bottom-up
-        const removed = Math.min(Math.floor((elapsed - halfDur) / WAVE_COURSE_MS), rows)
-        for (let r = removed; r < rows; r++) highlightedRows.add(r)
-      }
-    }
-
-    // --- Column wave threshold ---
-    let colThreshold = -Infinity // nothing highlighted
-    if (colWaveStart.current !== null) {
-      const elapsed = now - colWaveStart.current
-      const totalW = xRange.max - xRange.min
-      const halfDur = targetConfig.cols * WAVE_COL_MS
-      if (elapsed < halfDur) {
-        colThreshold = xRange.min + totalW * (elapsed / halfDur)
-      } else {
-        const remElapsed = elapsed - halfDur
-        colThreshold = xRange.max - totalW * Math.min(remElapsed / halfDur, 1)
-      }
-    }
 
     // --- Lerp global opacity ---
     lerpedOpacity.current += (targetConfig.brickOpacity - lerpedOpacity.current) * LERP
-    const opacity = lerpedOpacity.current
-    baseMat.current.opacity = opacity
-    highlightMat.current.opacity = opacity
 
     // --- Auto-clear cascade once all bricks have landed ---
     const totalCascadeDur =
@@ -394,12 +380,32 @@ export default function BrickModel({ targetConfig }: Props) {
       mesh.position.copy(lp)
       mesh.rotation.y = lerpedRotY.current[i]
 
-      // Highlight: course wave OR column wave
-      const isHighlighted = target !== null && (
-        highlightedRows.has(rowFromY(target.y, targetConfig.rows)) ||
-        (colWaveStart.current !== null && target.x <= colThreshold)
-      )
-      mesh.material = isHighlighted ? highlightMat.current : baseMat.current
+      // Per-brick smooth highlight intensity
+      const row = target ? rowFromY(target.y, targetConfig.rows) : -1
+      const col = target ? approxColFromX(target.x, xRange, targetConfig.cols) : -1
+
+      let intensity = 0
+      if (target !== null) {
+        if (highlightedRows.has(row)) intensity = 1
+
+        if (courseWaveStart.current !== null) {
+          const elapsed = now - courseWaveStart.current
+          const period = targetConfig.rows * COURSE_PULSE_STEP_MS + COURSE_PULSE_PAUSE_MS
+          intensity = Math.max(intensity,
+            pulseIntensity(elapsed, row * COURSE_PULSE_STEP_MS, COURSE_PULSE_WIDTH_MS, period))
+        }
+        if (colWaveStart.current !== null) {
+          const elapsed = now - colWaveStart.current
+          const seqIndex = row * targetConfig.cols + col
+          const totalSlots = targetConfig.rows * targetConfig.cols
+          const period = totalSlots * COL_PULSE_STEP_MS + COL_PULSE_PAUSE_MS
+          intensity = Math.max(intensity,
+            pulseIntensity(elapsed, seqIndex * COL_PULSE_STEP_MS, COL_PULSE_WIDTH_MS, period))
+        }
+      }
+
+      brickMats.current[i].color.copy(BASE_COLOR).lerp(HIGHLIGHT_COLOR, intensity)
+      brickMats.current[i].opacity = lerpedOpacity.current
     }
   })
 
@@ -410,6 +416,7 @@ export default function BrickModel({ targetConfig }: Props) {
           key={i}
           ref={(el) => { meshRefs.current[i] = el }}
           geometry={geo.current}
+          material={brickMats.current[i]}
         />
       ))}
     </group>
