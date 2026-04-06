@@ -47,8 +47,10 @@ function seededRand(seed: number): number {
   return x - Math.floor(x)
 }
 
-const BASE_COLOR      = new THREE.Color('#b45c2a')
-const HIGHLIGHT_COLOR = new THREE.Color('#e8a050')
+const BASE_COLOR        = new THREE.Color('#b45c2a')
+const HIGHLIGHT_COLOR   = new THREE.Color('#e8a050')
+const HEADER_DARK_COLOR = new THREE.Color('#7e421a')
+const HEADER_WAVE_DURATION_MS = 1500
 
 // Pulse timing: STEP = ms between adjacent pulse starts, WIDTH = ms for one bell (> STEP → overlap)
 // PAUSE must satisfy: (numSlots-1)*STEP + WIDTH + PAUSE > numSlots*STEP, i.e. PAUSE > WIDTH - STEP
@@ -269,15 +271,29 @@ function pulseIntensity(elapsed: number, delay: number, pulseWidth: number, peri
   return Math.sin((phase / pulseWidth) * Math.PI)
 }
 
-function makeMaterial(color: string): THREE.MeshStandardMaterial {
+function makeMaterial(color: string | THREE.Color): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.05, transparent: true, opacity: 1 })
 }
 
 export default function BrickModel({ targetConfig }: Props) {
   const geo = useRef(new THREE.BoxGeometry(BW, BH, BD))
+  // Body material: used for all faces of stretchers, and body faces (top/bottom/sides) of headers
   const brickMats = useRef<THREE.MeshStandardMaterial[]>(
-    Array.from({ length: MAX_BRICKS }, () => makeMaterial('#b45c2a'))
+    Array.from({ length: MAX_BRICKS }, () => makeMaterial(BASE_COLOR))
   )
+  // End material: used for the ±X faces of header bricks (the burnt ends visible on the wall face)
+  const endMats = useRef<THREE.MeshStandardMaterial[]>(
+    Array.from({ length: MAX_BRICKS }, () => makeMaterial(BASE_COLOR))
+  )
+  // 6-element material array for header bricks: [right(+X), left(-X), top, bottom, front(+Z), back(-Z)]
+  // After 90° Y-rotation, the ±X faces become the ±Z wall faces — the visible ends.
+  const headerMatArrays = useRef<THREE.MeshStandardMaterial[][]>(
+    Array.from({ length: MAX_BRICKS }, (_, i) => [
+      endMats.current[i], endMats.current[i],
+      brickMats.current[i], brickMats.current[i], brickMats.current[i], brickMats.current[i],
+    ])
+  )
+  const lastIsHeader = useRef<boolean[]>(Array(MAX_BRICKS).fill(false))
 
   const defs = useMemo(() => getBrickDefs(targetConfig), [targetConfig])
 
@@ -305,6 +321,10 @@ export default function BrickModel({ targetConfig }: Props) {
   const splitBrickLaunched     = useRef<boolean[]>(Array(MAX_BRICKS).fill(false))
   const prevCollapseProgress   = useRef(targetConfig.collapseProgress)
   const prevSplitProgress      = useRef(targetConfig.splitProgress)
+
+  const prevHeaderDarkenProgress   = useRef(targetConfig.headerDarkenProgress)
+  const headerWaveStart            = useRef<number | null>(null)
+  const headerWaveInternalProgress = useRef(targetConfig.headerDarkenProgress > 0 ? 1 : 0)
 
   function snapBrick(i: number, d: BrickDef) {
     lerpedPos.current[i].set(d.x, d.y, d.z)
@@ -420,6 +440,23 @@ export default function BrickModel({ targetConfig }: Props) {
     }
     prevSplitProgress.current = targetConfig.splitProgress
 
+    // --- Header darkening wave ---
+    if (targetConfig.headerDarkenProgress > 0 && prevHeaderDarkenProgress.current === 0) {
+      headerWaveStart.current = now
+      headerWaveInternalProgress.current = 0
+    }
+    if (targetConfig.headerDarkenProgress === 0 && prevHeaderDarkenProgress.current > 0) {
+      headerWaveStart.current = null
+      headerWaveInternalProgress.current = 0
+    }
+    prevHeaderDarkenProgress.current = targetConfig.headerDarkenProgress
+
+    if (headerWaveStart.current !== null) {
+      headerWaveInternalProgress.current = Math.min((now - headerWaveStart.current) / HEADER_WAVE_DURATION_MS, 1)
+    } else if (targetConfig.headerDarkenProgress > 0) {
+      headerWaveInternalProgress.current = 1
+    }
+
     // --- Static course highlight set (no wave logic here) ---
     const highlightedRows = new Set<number>(targetConfig.highlightedCourses)
 
@@ -435,6 +472,11 @@ export default function BrickModel({ targetConfig }: Props) {
         mat.side = isOpaque ? THREE.FrontSide : THREE.DoubleSide
         mat.needsUpdate = true
       }
+      for (const mat of endMats.current) {
+        mat.depthWrite = isOpaque
+        mat.side = isOpaque ? THREE.FrontSide : THREE.DoubleSide
+        mat.needsUpdate = true
+      }
     }
 
     // --- Auto-clear cascade once all bricks have landed ---
@@ -445,6 +487,9 @@ export default function BrickModel({ targetConfig }: Props) {
     if (fallWaveStart.current !== null && now - fallWaveStart.current > totalCascadeDur) {
       fallWaveStart.current = null
     }
+
+    // Hoist wave threshold out of the per-brick loop — it's constant for the whole frame
+    const waveThreshold = xRange.min + headerWaveInternalProgress.current * (xRange.max - xRange.min)
 
     // --- Update each brick ---
     for (let i = 0; i < MAX_BRICKS; i++) {
@@ -534,8 +579,24 @@ export default function BrickModel({ targetConfig }: Props) {
         }
       }
 
+      // Switch between single-material (stretchers) and 6-material array (headers) as needed
+      const isHeader = target !== null && Math.abs(target.rotY) > 0.1
+      if (isHeader !== lastIsHeader.current[i]) {
+        mesh.material = isHeader ? headerMatArrays.current[i] : brickMats.current[i]
+        lastIsHeader.current[i] = isHeader
+      }
+
+      // Body faces always use normal brick color
       brickMats.current[i].color.copy(BASE_COLOR).lerp(HIGHLIGHT_COLOR, intensity)
       brickMats.current[i].opacity = lerpedOpacity.current
+
+      // End faces: only updated for header bricks (non-headers never use endMats[i])
+      if (isHeader) {
+        const endBaseColor = (targetConfig.headerDarkenProgress > 0 && target!.x <= waveThreshold)
+          ? HEADER_DARK_COLOR : BASE_COLOR
+        endMats.current[i].color.copy(endBaseColor).lerp(HIGHLIGHT_COLOR, intensity)
+        endMats.current[i].opacity = lerpedOpacity.current
+      }
     }
   })
 

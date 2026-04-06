@@ -16,6 +16,7 @@ export interface SceneState {
   cameraOrbit: number             // radians; rotates camera around Y to look behind wall
   collapseProgress: number        // 0 = standing, 1 = bricks scattered (collapsed)
   splitProgress: number           // 0 = wythes together, 1 = front/back wythes split apart
+  headerDarkenProgress: number    // 0 = all headers normal, >0 = headers dark; rising edge triggers left-to-right wave
 }
 
 export interface Moment {
@@ -36,6 +37,7 @@ const BASE = {
   cameraOrbit: 0,
   collapseProgress: 0,
   splitProgress: 0,
+  headerDarkenProgress: 0,
 }
 
 const S1: SceneState = { ...BASE, bondPattern: 'stretcher', numWythes: 1, rows: 5, cols: 6, wytheSeparation: 0 }
@@ -46,6 +48,13 @@ const ENGLISH: SceneState = { ...BASE, bondPattern: 'english', numWythes: 2, row
 const ENGLISH_CROSS: SceneState = { ...BASE, bondPattern: 'englishCross', numWythes: 2, rows: 6, cols: 6, wytheSeparation: 0 }
 const FLEMISH: SceneState = { ...BASE, bondPattern: 'flemish', numWythes: 2, rows: 6, cols: 6, wytheSeparation: 0 }
 const MONK: SceneState = { ...BASE, bondPattern: 'monk', numWythes: 2, rows: 6, cols: 8, wytheSeparation: 0 }
+
+// Dark-header variants — used from the "headers are glazed" moment onward
+const AMERICAN_DARK: SceneState     = { ...AMERICAN,     headerDarkenProgress: 1 }
+const ENGLISH_DARK: SceneState      = { ...ENGLISH,      headerDarkenProgress: 1 }
+const ENGLISH_CROSS_DARK: SceneState = { ...ENGLISH_CROSS, headerDarkenProgress: 1 }
+const FLEMISH_DARK: SceneState      = { ...FLEMISH,      headerDarkenProgress: 1 }
+const MONK_DARK: SceneState         = { ...MONK,         headerDarkenProgress: 1 }
 
 export const moments: Moment[] = [
   // Moment 0: no bricks visible yet (fallProgress=0 puts them above screen)
@@ -67,17 +76,17 @@ export const moments: Moment[] = [
   { isSubstep: true,  text: "But these 2 wythes are only held together by mortar, so they'll split apart.", scene: { ...S2_CLOSE, splitProgress: 1 } },
   { isSubstep: false, text: "After a few courses of stretchers, we'll need something to bond the two wythes together.", scene: S2_CLOSE },
   { isSubstep: true,  text: "We can solve this problem with more bricks! Let's try rotating some of our bricks so they lay across the two wythes, with their heads visible on the faces of the wall. These bricks are called *headers*.", scene: ENGLISH },
-  { isSubstep: false, text: 'Sometimes, when the bricks are being fired, the heads are glazed or burnt. That lets the headers stand out.', scene: ENGLISH },
-  { isSubstep: false, text: 'There are different ways to arrange the headers that bond together the wythes.', scene: ENGLISH },
-  { isSubstep: true,  text: "These different patterns are called *bonds*. Let's learn about some of them!", scene: ENGLISH },
-  { isSubstep: false, text: "If a wall has a few courses of stretchers for each course of headers, it's called *American bond*. In America, this is also called *Common bond*.", scene: AMERICAN },
-  { isSubstep: true,  text: "This pattern is easy to build, but it's not very pretty.", scene: AMERICAN },
-  { isSubstep: false, text: "If there's just 1 course of stretchers for each course of headers, it's called *English bond*. In England, this is also called *Common bond*.", scene: ENGLISH },
-  { isSubstep: true,  text: "People say this is one of the strongest bonds, but it looks very menacing to me.", scene: ENGLISH },
-  { isSubstep: false, text: "Let's try offsetting every other course of stretchers by half a brick.", scene: ENGLISH_CROSS },
-  { isSubstep: true,  text: 'Much prettier! Look how the mortar joints between the bricks form diagonal lines.', scene: ENGLISH_CROSS },
-  { isSubstep: true,  text: 'This is called *English cross bond* or *Dutch bond*, depending on how the ends of the wall are finished.', scene: ENGLISH_CROSS },
-  { isSubstep: false, text: "We don't have to use just stretchers or just headers in each course. What if we alternate them?", scene: FLEMISH },
-  { isSubstep: true,  text: "This is called *Flemish bond*. It's my favorite!", scene: FLEMISH },
-  { isSubstep: false, text: "If each course has 2 stretchers for each header, it's called *Monk bond*.", scene: MONK },
+  { isSubstep: false, text: 'Sometimes, when the bricks are being fired, the heads are glazed or burnt. That lets the headers stand out.', scene: { ...ENGLISH, headerDarkenProgress: 1 } },
+  { isSubstep: false, text: 'There are different ways to arrange the headers that bond together the wythes.', scene: ENGLISH_DARK },
+  { isSubstep: true,  text: "These different patterns are called *bonds*. Let's learn about some of them!", scene: ENGLISH_DARK },
+  { isSubstep: false, text: "If a wall has a few courses of stretchers for each course of headers, it's called *American bond*. In America, this is also called *Common bond*.", scene: AMERICAN_DARK },
+  { isSubstep: true,  text: "This pattern is easy to build, but it's not very pretty.", scene: AMERICAN_DARK },
+  { isSubstep: false, text: "If there's just 1 course of stretchers for each course of headers, it's called *English bond*. In England, this is also called *Common bond*.", scene: ENGLISH_DARK },
+  { isSubstep: true,  text: "People say this is one of the strongest bonds, but it looks very menacing to me.", scene: ENGLISH_DARK },
+  { isSubstep: false, text: "Let's try offsetting every other course of stretchers by half a brick.", scene: ENGLISH_CROSS_DARK },
+  { isSubstep: true,  text: 'Much prettier! Look how the mortar joints between the bricks form diagonal lines.', scene: ENGLISH_CROSS_DARK },
+  { isSubstep: true,  text: 'This is called *English cross bond* or *Dutch bond*, depending on how the ends of the wall are finished.', scene: ENGLISH_CROSS_DARK },
+  { isSubstep: false, text: "We don't have to use just stretchers or just headers in each course. What if we alternate them?", scene: FLEMISH_DARK },
+  { isSubstep: true,  text: "This is called *Flemish bond*. It's my favorite!", scene: FLEMISH_DARK },
+  { isSubstep: false, text: "If each course has 2 stretchers for each header, it's called *Monk bond*.", scene: MONK_DARK },
 ]
