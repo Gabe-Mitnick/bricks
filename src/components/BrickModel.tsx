@@ -89,6 +89,7 @@ const COL_PULSE_PAUSE_MS = 600 // > WIDTH - STEP (200ms)
 const ROW_DELAY_MS = 150 // ms between each row starting to fall
 const COL_DELAY_MS = 40 // ms between each column within a row
 const FALL_DURATION_MS = 350 // ms for one brick to travel FALL_HEIGHT to rest
+const FALL_BUFFER_MS = 50 // extra ms after last brick lands before handing off to lerp
 
 export interface BrickDef {
 	x: number
@@ -590,8 +591,13 @@ export default function BrickModel({ targetConfig, textureDebug, geometryDebug }
 		}
 
 		// --- Auto-clear cascade once all bricks have landed ---
+		// Buffer absorbs frame-timing jitter: without it, the cascade clears ~1 frame early,
+		// leaving the last brick ~180mm above its target and creating a visible slow LERP drift.
 		const totalCascadeDur =
-			(targetConfig.rows - 1) * ROW_DELAY_MS + (targetConfig.cols - 1) * COL_DELAY_MS + FALL_DURATION_MS
+			(targetConfig.rows - 1) * ROW_DELAY_MS +
+			(targetConfig.cols - 1) * COL_DELAY_MS +
+			FALL_DURATION_MS +
+			FALL_BUFFER_MS
 		if (fallWaveStart.current !== null && now - fallWaveStart.current > totalCascadeDur) {
 			fallWaveStart.current = null
 		}
