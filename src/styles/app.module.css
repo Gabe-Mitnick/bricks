@@ -1,3 +1,7 @@
+:root {
+	--col-width: 800px;
+}
+
 .container {
 	position: relative;
 	width: 100%;
@@ -28,4 +32,16 @@
 	left: 1.5rem;
 	right: 1.5rem;
 	z-index: 2;
+}
+
+@media (min-width: 900px) {
+	:root {
+		--col-inset: calc(50% - var(--col-width) / 2);
+	}
+
+	.textLayer,
+	.controlsLayer {
+		left: var(--col-inset);
+		right: var(--col-inset);
+	}
 }
