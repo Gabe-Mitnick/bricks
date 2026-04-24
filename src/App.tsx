@@ -5,6 +5,7 @@ import Controls from './components/Controls'
 import DebugMenu from './components/DebugMenu'
 import { moments } from './steps'
 import { TextureDebugConfig, DEFAULT_TEXTURE_DEBUG } from './brickTextures'
+import { BrickGeometryConfig, DEFAULT_BRICK_GEOMETRY } from './brickGeometry'
 import styles from './styles/app.module.css'
 
 export interface CameraConfig {
@@ -18,6 +19,7 @@ export default function App() {
 	const [currentMoment, setCurrentMoment] = useState(0)
 	const [cameraConfig, setCameraConfig] = useState<CameraConfig>(DEFAULT_CAMERA)
 	const [textureDebug, setTextureDebug] = useState<TextureDebugConfig>(DEFAULT_TEXTURE_DEBUG)
+	const [geometryDebug, setGeometryDebug] = useState<BrickGeometryConfig>(DEFAULT_BRICK_GEOMETRY)
 
 	const goNext = useCallback(() => setCurrentMoment((s) => Math.min(s + 1, moments.length - 1)), [])
 	const goPrev = useCallback(() => setCurrentMoment((s) => Math.max(s - 1, 0)), [])
@@ -34,7 +36,7 @@ export default function App() {
 	return (
 		<div className={styles.container}>
 			<div className={styles.canvasLayer}>
-				<Scene targetConfig={moments[currentMoment].scene} cameraConfig={cameraConfig} textureDebug={textureDebug} />
+				<Scene targetConfig={moments[currentMoment].scene} cameraConfig={cameraConfig} textureDebug={textureDebug} geometryDebug={geometryDebug} />
 			</div>
 			<div className={styles.textLayer}>
 				<TextLayer moments={moments} currentMoment={currentMoment} />
@@ -48,6 +50,8 @@ export default function App() {
 					onCameraChange={setCameraConfig}
 					textureDebug={textureDebug}
 					onTextureChange={setTextureDebug}
+					geometryDebug={geometryDebug}
+					onGeometryChange={setGeometryDebug}
 				/>
 			)}
 		</div>

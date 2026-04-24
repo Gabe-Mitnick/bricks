@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { CameraConfig } from '../App'
 import { TextureDebugConfig } from '../brickTextures'
+import { BrickGeometryConfig } from '../brickGeometry'
 import styles from '../styles/debugMenu.module.css'
 
 interface Props {
@@ -8,6 +9,8 @@ interface Props {
 	onCameraChange: (config: CameraConfig) => void
 	textureDebug: TextureDebugConfig
 	onTextureChange: (config: TextureDebugConfig) => void
+	geometryDebug: BrickGeometryConfig
+	onGeometryChange: (config: BrickGeometryConfig) => void
 }
 
 interface SliderRowProps {
@@ -40,7 +43,7 @@ function SliderRow({ label, value, min, max, step, current, onSlide }: SliderRow
 	)
 }
 
-export default function DebugMenu({ cameraConfig, onCameraChange, textureDebug, onTextureChange }: Props) {
+export default function DebugMenu({ cameraConfig, onCameraChange, textureDebug, onTextureChange, geometryDebug, onGeometryChange }: Props) {
 	const [open, setOpen] = useState(false)
 	const containerRef = useRef<HTMLDivElement>(null)
 
@@ -106,6 +109,16 @@ export default function DebugMenu({ cameraConfig, onCameraChange, textureDebug, 
 						step={0.05}
 						current={textureDebug.pitOffset}
 						onSlide={(pitOffset) => onTextureChange({ ...textureDebug, pitOffset })}
+					/>
+					<div className={styles.sectionLabel}>Geometry</div>
+					<SliderRow
+						label="Round radius"
+						value={`${geometryDebug.radius.toFixed(1)} mm`}
+						min={0}
+						max={15}
+						step={0.5}
+						current={geometryDebug.radius}
+						onSlide={(radius) => onGeometryChange({ ...geometryDebug, radius })}
 					/>
 				</div>
 			)}

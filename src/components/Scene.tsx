@@ -4,6 +4,7 @@ import { OrthographicCamera, PerspectiveCamera } from '@react-three/drei'
 import { SceneState } from '../steps'
 import { CameraConfig } from '../App'
 import { TextureDebugConfig } from '../brickTextures'
+import { BrickGeometryConfig } from '../brickGeometry'
 import BrickModel from './BrickModel'
 import StructuralWall from './StructuralWall'
 import MetalTies from './MetalTies'
@@ -48,9 +49,10 @@ interface Props {
 	targetConfig: SceneState
 	cameraConfig: CameraConfig
 	textureDebug: TextureDebugConfig
+	geometryDebug: BrickGeometryConfig
 }
 
-export default function Scene({ targetConfig, cameraConfig, textureDebug }: Props) {
+export default function Scene({ targetConfig, cameraConfig, textureDebug, geometryDebug }: Props) {
 	return (
 		<Canvas style={{ background: 'transparent' }}>
 			<DynamicCamera config={cameraConfig} targetOrbit={targetConfig.cameraOrbit} />
@@ -58,7 +60,7 @@ export default function Scene({ targetConfig, cameraConfig, textureDebug }: Prop
 			<directionalLight position={[500, 1000, 500]} intensity={1.2} castShadow />
 			<directionalLight position={[-300, -200, -400]} intensity={0.3} color="#7090c0" />
 			<group rotation={[0, 0.3, 0]}>
-				<BrickModel targetConfig={targetConfig} textureDebug={textureDebug} />
+				<BrickModel targetConfig={targetConfig} textureDebug={textureDebug} geometryDebug={geometryDebug} />
 				<StructuralWall targetOpacity={targetConfig.structuralWallOpacity} />
 				<MetalTies targetOpacity={targetConfig.metalTiesOpacity} />
 			</group>

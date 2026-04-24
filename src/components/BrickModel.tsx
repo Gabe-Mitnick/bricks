@@ -2,11 +2,13 @@ import { useRef, useMemo, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { SceneState } from '../steps'
-import { TextureDebugConfig, DEFAULT_TEXTURE_DEBUG, generateBrickTextures, BrickTextures } from '../brickTextures'
+import { TextureDebugConfig, generateBrickTextures, BrickTextures } from '../brickTextures'
+import { makeBrickGeometry, BrickGeometryConfig } from '../brickGeometry'
 
 interface Props {
 	targetConfig: SceneState
 	textureDebug: TextureDebugConfig
+	geometryDebug: BrickGeometryConfig
 }
 
 // Standard UK brick dimensions in mm. Key property: BD + MORTAR = (BW + MORTAR) / 2,
@@ -323,14 +325,14 @@ function makeMaterial(color: string | THREE.Color, normalMap: THREE.CanvasTextur
 	})
 }
 
-export default function BrickModel({ targetConfig, textureDebug }: Props) {
+export default function BrickModel({ targetConfig, textureDebug, geometryDebug }: Props) {
 	// useRef(expr) evaluates expr on every render even though the value is only used once.
 	// Use lazy initialization (null check) so expensive one-time work only runs on first render.
 	const textureRef = useRef<BrickTextures | null>(null)
 	if (!textureRef.current) textureRef.current = generateBrickTextures(textureDebug)
 
-	const geo = useRef<THREE.BoxGeometry | null>(null)
-	if (!geo.current) geo.current = new THREE.BoxGeometry(BW, BH, BD)
+	const geo = useRef<THREE.BufferGeometry | null>(null)
+	if (!geo.current) geo.current = makeBrickGeometry(BW, BH, BD, geometryDebug)
 
 	const brickMats = useRef<THREE.MeshStandardMaterial[] | null>(null)
 	if (!brickMats.current) {
@@ -378,10 +380,27 @@ export default function BrickModel({ targetConfig, textureDebug }: Props) {
 		oldTextures.atlas.dispose()
 	}, [textureDebug.noiseStrength, textureDebug.noiseFrequency, textureDebug.pitOffset])
 
+	const skipFirstGeoRegen = useRef(true)
+	useEffect(() => {
+		if (skipFirstGeoRegen.current) {
+			skipFirstGeoRegen.current = false
+			return
+		}
+		const oldGeo = geo.current!
+		const newGeo = makeBrickGeometry(BW, BH, BD, geometryDebug)
+		geo.current = newGeo
+		for (let i = 0; i < MAX_BRICKS; i++) {
+			const mesh = meshRefs.current[i]
+			if (mesh) mesh.geometry = newGeo
+		}
+		oldGeo.dispose()
+	}, [geometryDebug.radius])
+
 	useEffect(() => {
 		return () => {
 			for (const map of textureRef.current.maps) map.dispose()
 			textureRef.current.atlas.dispose()
+			geo.current?.dispose()
 		}
 	}, [])
 
@@ -707,7 +726,7 @@ export default function BrickModel({ targetConfig, textureDebug }: Props) {
 					ref={(el) => {
 						meshRefs.current[i] = el
 					}}
-					geometry={geo.current}
+					geometry={geo.current!}
 					material={brickMats.current[i]}
 				/>
 			))}
