@@ -324,28 +324,39 @@ function makeMaterial(color: string | THREE.Color, normalMap: THREE.CanvasTextur
 }
 
 export default function BrickModel({ targetConfig, textureDebug }: Props) {
-	const textureRef = useRef<BrickTextures>(generateBrickTextures(textureDebug))
-	const geo = useRef(new THREE.BoxGeometry(BW, BH, BD))
-	// Body material: used for all faces of stretchers, and body faces (top/bottom/sides) of headers
-	const brickMats = useRef<THREE.MeshStandardMaterial[]>(
-		Array.from({ length: MAX_BRICKS }, (_, i) => makeMaterial(BASE_COLOR, textureRef.current.maps[i])),
-	)
-	// End material: used for the ±X faces of header bricks (the burnt ends visible on the wall face)
-	const endMats = useRef<THREE.MeshStandardMaterial[]>(
-		Array.from({ length: MAX_BRICKS }, (_, i) => makeMaterial(BASE_COLOR, textureRef.current.maps[i])),
-	)
+	// useRef(expr) evaluates expr on every render even though the value is only used once.
+	// Use lazy initialization (null check) so expensive one-time work only runs on first render.
+	const textureRef = useRef<BrickTextures | null>(null)
+	if (!textureRef.current) textureRef.current = generateBrickTextures(textureDebug)
+
+	const geo = useRef<THREE.BoxGeometry | null>(null)
+	if (!geo.current) geo.current = new THREE.BoxGeometry(BW, BH, BD)
+
+	const brickMats = useRef<THREE.MeshStandardMaterial[] | null>(null)
+	if (!brickMats.current) {
+		brickMats.current = Array.from({ length: MAX_BRICKS }, (_, i) =>
+			makeMaterial(BASE_COLOR, textureRef.current!.maps[i]),
+		)
+	}
+	const endMats = useRef<THREE.MeshStandardMaterial[] | null>(null)
+	if (!endMats.current) {
+		endMats.current = Array.from({ length: MAX_BRICKS }, (_, i) =>
+			makeMaterial(BASE_COLOR, textureRef.current!.maps[i]),
+		)
+	}
 	// 6-element material array for header bricks: [right(+X), left(-X), top, bottom, front(+Z), back(-Z)]
 	// After 90° Y-rotation, the ±X faces become the ±Z wall faces — the visible ends.
-	const headerMatArrays = useRef<THREE.MeshStandardMaterial[][]>(
-		Array.from({ length: MAX_BRICKS }, (_, i) => [
-			endMats.current[i],
-			endMats.current[i],
-			brickMats.current[i],
-			brickMats.current[i],
-			brickMats.current[i],
-			brickMats.current[i],
-		]),
-	)
+	const headerMatArrays = useRef<THREE.MeshStandardMaterial[][] | null>(null)
+	if (!headerMatArrays.current) {
+		headerMatArrays.current = Array.from({ length: MAX_BRICKS }, (_, i) => [
+			endMats.current![i],
+			endMats.current![i],
+			brickMats.current![i],
+			brickMats.current![i],
+			brickMats.current![i],
+			brickMats.current![i],
+		])
+	}
 	const lastIsHeader = useRef<boolean[]>(Array(MAX_BRICKS).fill(false))
 
 	const skipFirstTextureRegen = useRef(true)
